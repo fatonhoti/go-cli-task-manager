@@ -238,19 +238,19 @@ func (tm *TaskManager) ListTasksCompact(tasks *[]Task) {
 func (tm *TaskManager) SaveTasksToFile() {
 	jsonData, err := json.Marshal(tm.tasks)
 	if err != nil {
-		fmt.Println("Failed. Could not serailize tasks.")
+		fmt.Println("error. Could not serailize tasks.")
 		panic(err)
 	}
 
 	f, err := os.OpenFile(tm.path, os.O_TRUNC|os.O_WRONLY, 0644)
 	if err != nil {
-		fmt.Printf("Failed. Could not open file %s\n", tm.path)
+		fmt.Printf("error. Could not open file %s\n", tm.path)
 		panic(err)
 	}
 
 	_, err = f.Write(jsonData)
 	if err != nil {
-		fmt.Println("Failed. Could not write to file.")
+		fmt.Println("error. Could not write to file.")
 		panic(err)
 	}
 }
@@ -259,24 +259,29 @@ func (tm *TaskManager) LoadTasksFromFile() {
 
 	f, err := os.OpenFile(tm.path, os.O_CREATE|os.O_RDONLY, 0644)
 	if err != nil {
+		fmt.Printf("Failed. Could not open file %s\n", tm.path)
 		panic(err)
 	}
+	defer f.Close()
 
 	fi, err := f.Stat()
 	if err != nil {
+		fmt.Printf("error. Stat() on %s failed.\n", tm.path)
 		panic(err)
 	}
 
 	// If we just created the file there will
 	// be nothing to unmarshal.
-	if fi.Size() > 0 {
-		var buffer = make([]byte, fi.Size())
-		f.Read(buffer)
+	if fi.Size() == 0 {
+		return
+	}
 
-		err = json.Unmarshal(buffer, &tm.tasks)
-		if err != nil {
-			panic(err)
-		}
+	var buffer = make([]byte, fi.Size())
+	f.Read(buffer)
+
+	err = json.Unmarshal(buffer, &tm.tasks)
+	if err != nil {
+		panic(err)
 	}
 }
 
