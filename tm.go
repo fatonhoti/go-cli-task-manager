@@ -20,110 +20,76 @@ type Task struct {
 
 type TaskManager struct {
 	nextId int
-	tasks  []Task
+	tasks  map[int]Task
 	path   string
 }
 
 func (tm *TaskManager) Init() {
 	tm.LoadTasksFromFile()
-
-	if len(tm.tasks) == 0 {
-		tm.nextId = 1
-		return
-	}
-
-	tm.nextId = 0
-	for _, v := range tm.tasks {
-		if v.ID > tm.nextId {
-			tm.nextId = v.ID
-		}
-	}
-	tm.nextId++
+	tm.nextId = len(tm.tasks) + 1
 }
 
 func (tm *TaskManager) AddTask(desc string) {
-	tm.tasks = append(tm.tasks, Task{
+	tm.tasks[tm.nextId] = Task{
 		ID:          tm.nextId,
 		Description: desc,
 		Completed:   false,
 		CreatedAt:   time.Now(),
 		CompletedAt: time.Time{},
-	})
+	}
 	tm.nextId++
 	fmt.Printf("Task added successfully. ID=%d", tm.nextId-1)
 	tm.SaveTasksToFile()
 }
 
 func (tm *TaskManager) DeleteTask(id int) {
-	if id <= 0 {
-		fmt.Println("ID must be positive integer greater than 0.")
-		return
-	}
-
-	// Attempt to find task with ID=id
-	var idx int = -1
-	for i, task := range tm.tasks {
-		if task.ID == id {
-			idx = i
-			break
-		}
-	}
-
-	if idx != -1 {
-		tm.tasks = append(tm.tasks[:idx], tm.tasks[idx+1:]...)
-		// Shift IDs
-		t := max(1, id-1)
-		for i := range tm.tasks {
-			task := &tm.tasks[i]
-			task.ID = t
-			t++
-		}
+	if _, ok := tm.tasks[id]; ok {
+		delete(tm.tasks, id)
 		tm.SaveTasksToFile()
 		fmt.Printf("Task %d has been deleted.\n", id)
 		return
 	}
-
-	fmt.Printf("No task with ID=%d found.\n", id)
+	fmt.Printf("error. No task with given ID=%d\n", id)
 }
 
 func (tm *TaskManager) CompleteTask(id int) {
-	for i := range tm.tasks {
-		task := &tm.tasks[i]
-		if task.ID == id {
-			task.Completed = true
-			task.CompletedAt = time.Now()
-			tm.SaveTasksToFile()
-			fmt.Printf("Task %d has been marked as completed.\n", id)
-			break
-		}
+	if task, ok := tm.tasks[id]; ok {
+		task.Completed = true
+		task.CompletedAt = time.Now()
+		tm.tasks[id] = task
+		tm.SaveTasksToFile()
+		fmt.Printf("Task %d has been marked as completed.\n", id)
+		return
 	}
+	fmt.Printf("error. No task with given ID=%d\n", id)
 }
 
 func (tm *TaskManager) UncheckTask(id int) {
-	for i := range tm.tasks {
-		if tm.tasks[i].ID == id {
-			tm.tasks[i].Completed = false
-			tm.SaveTasksToFile()
-			fmt.Printf("Task %d has been marked as uncompleted.\n", id)
-			break
-		}
+	if task, ok := tm.tasks[id]; ok {
+		task.Completed = false
+		task.CompletedAt = time.Time{}
+		tm.tasks[id] = task
+		tm.SaveTasksToFile()
+		fmt.Printf("Task %d has been marked as uncompleted.\n", id)
+		return
 	}
+	fmt.Printf("error. No task with given ID=%d\n", id)
 }
 
 func (tm *TaskManager) ClearTasks(filter string) {
-	ts := make([]Task, 0)
+	ts := make(map[int]Task, 0)
 
 	if filter == "completed" {
 		for i := range tm.tasks {
 			if !tm.tasks[i].Completed {
-				ts = append(ts, tm.tasks[i])
+				ts[tm.tasks[i].ID] = tm.tasks[i]
 			}
 		}
 		fmt.Println("Completed tasks cleared.")
 	} else if filter == "pending" {
 		for i := range tm.tasks {
 			if tm.tasks[i].Completed {
-				ts = append(ts, tm.tasks[i])
+				ts[tm.tasks[i].ID] = tm.tasks[i]
 			}
 		}
 		fmt.Println("Pending tasks cleared.")
@@ -139,24 +105,22 @@ func (tm *TaskManager) ListTasks(viewCompact bool, filter string) {
 		fmt.Println("No tasks to show.")
 		return
 	}
-	ts := make([]Task, 0)
+	ts := make(map[int]Task, 0)
 
 	if filter == "completed" {
 		for i := range tm.tasks {
-			task := &tm.tasks[i]
-			if task.Completed {
-				ts = append(ts, *task)
+			if tm.tasks[i].Completed {
+				ts[tm.tasks[i].ID] = tm.tasks[i]
 			}
 		}
 	} else if filter == "pending" {
 		for i := range tm.tasks {
-			task := &tm.tasks[i]
-			if !task.Completed {
-				ts = append(ts, *task)
+			if !tm.tasks[i].Completed {
+				ts[tm.tasks[i].ID] = tm.tasks[i]
 			}
 		}
 	} else {
-		ts = append(ts, tm.tasks...)
+		ts = tm.tasks
 	}
 
 	if viewCompact {
@@ -166,46 +130,9 @@ func (tm *TaskManager) ListTasks(viewCompact bool, filter string) {
 	}
 }
 
-func (tm *TaskManager) ListTasksTable(tasks *[]Task) {
-	// Print table headers
-	fmt.Printf("%-5s %-10s %-20s %-20s %-10s\n", "ID", "Completed", "Created At", "Completed At", "Days Ago")
-	fmt.Println("-------------------------------------------------------------------")
-
-	// Print each task
-	for _, task := range *tasks {
-		completed := "No"
-		completedAt := "NOT_COMPLETED"
-		if task.Completed {
-			completed = "Yes"
-			completedAt = task.CompletedAt.Format("2006-01-02 15:04:05")
-		}
-
-		// Calculate how many days ago the task was created
-		daysAgo := int(time.Since(task.CreatedAt).Hours() / 24)
-
-		// Print task metadata first (ID, status, timestamps)
-		fmt.Printf("%-5d %-10s %-20s %-20s %-10d\n",
-			task.ID,
-			completed,
-			task.CreatedAt.Format("2006-01-02 15:04:05"),
-			completedAt,
-			daysAgo)
-
-		// Print each line of the description
-		descriptionLines := strings.Split(task.Description, "\n")
-		for _, line := range descriptionLines {
-			fmt.Printf("%-s\n", strings.Replace(line, `\n`, "\n", -1)) // Indent the description lines to align them
-		}
-
-		fmt.Println("-------------------------------------------------------------------")
-	}
-}
-
-func (tm *TaskManager) ListTasksCompact(tasks *[]Task) {
+func (tm *TaskManager) ListTasksCompact(tasks *map[int]Task) {
 	fmt.Printf("--------------------------------------------\n")
-	for i := range *tasks {
-		task := (*tasks)[i]
-
+	for id, task := range *tasks {
 		// Add checkbox style for completed status
 		status := "[ ]"
 		if task.Completed {
@@ -213,7 +140,7 @@ func (tm *TaskManager) ListTasksCompact(tasks *[]Task) {
 		}
 
 		// Print out the task details
-		fmt.Printf("%s Task ID: %d\n", status, task.ID)
+		fmt.Printf("%s Task ID: %d\n", status, id)
 
 		// Print each line of the description
 		descriptionLines := strings.Split(task.Description, "\n")
@@ -235,8 +162,43 @@ func (tm *TaskManager) ListTasksCompact(tasks *[]Task) {
 	}
 }
 
+func (tm *TaskManager) ListTasksTable(tasks *map[int]Task) {
+	// Print table headers
+	fmt.Printf("%-5s %-10s %-20s %-20s %-10s\n", "ID", "Completed", "Created At", "Completed At", "Days Ago")
+	fmt.Println("-------------------------------------------------------------------")
+
+	// Print each task
+	for id, task := range *tasks {
+		completed := "No"
+		completedAt := "NOT_COMPLETED"
+		if task.Completed {
+			completed = "Yes"
+			completedAt = task.CompletedAt.Format("2006-01-02 15:04:05")
+		}
+
+		// Calculate how many days ago the task was created
+		daysAgo := int(time.Since(task.CreatedAt).Hours() / 24)
+
+		// Print task metadata first (ID, status, timestamps)
+		fmt.Printf("%-5d %-10s %-20s %-20s %-10d\n",
+			id,
+			completed,
+			task.CreatedAt.Format("2006-01-02 15:04:05"),
+			completedAt,
+			daysAgo)
+
+		// Print each line of the description
+		descriptionLines := strings.Split(task.Description, "\n")
+		for _, line := range descriptionLines {
+			fmt.Printf("%-s\n", strings.Replace(line, `\n`, "\n", -1)) // Indent the description lines to align them
+		}
+
+		fmt.Println("-------------------------------------------------------------------")
+	}
+}
+
 func (tm *TaskManager) SaveTasksToFile() {
-	jsonData, err := json.Marshal(tm.tasks)
+	jsonData, err := json.MarshalIndent(tm.tasks, "", " ")
 	if err != nil {
 		fmt.Println("error. Could not serailize tasks.")
 		panic(err)
@@ -279,16 +241,19 @@ func (tm *TaskManager) LoadTasksFromFile() {
 	var buffer = make([]byte, fi.Size())
 	f.Read(buffer)
 
+	//var taskSlice []Task
 	err = json.Unmarshal(buffer, &tm.tasks)
 	if err != nil {
+		fmt.Println("error. Failed to unmarshal JSON.")
 		panic(err)
 	}
+
 }
 
 func NewTaskManager(path string) *TaskManager {
 	return &TaskManager{
 		nextId: 1,
-		tasks:  []Task{},
+		tasks:  map[int]Task{},
 		path:   path,
 	}
 }
