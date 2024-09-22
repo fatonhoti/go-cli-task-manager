@@ -16,7 +16,7 @@ func findTaskByID(tasks *map[int]Task, id int) (*Task, bool) {
 
 func TestAddTask(t *testing.T) {
 	type testCase struct {
-		desc        string // Description of the test case
+		testDesc    string // Description of the test case
 		taskDesc    string // Description to add as a task
 		expectExist bool   // Whether the task is expected to exist
 		expectedID  int    // Expected ID of the task
@@ -25,34 +25,34 @@ func TestAddTask(t *testing.T) {
 	// Define the test cases
 	testCases := []testCase{
 		{
-			desc:        "Add task with valid description",
+			testDesc:    "Add task with valid description",
 			taskDesc:    "Description for task 1",
 			expectExist: true,
 			expectedID:  1,
 		},
 		{
-			desc:        "Add task with empty description",
+			testDesc:    "Add task with empty description",
 			taskDesc:    "",
 			expectExist: false, // empty descriptions are not allowed
 			expectedID:  0,     // <-- zero-value for 'ID: int'
 		},
 	}
 
-	// Create a temporary file for testing to ensure isolation
+	// create temp file for testing to ensure isolation
 	tempFile, err := os.CreateTemp("", "test_tasks_*.json")
 	if err != nil {
 		t.Fatalf("Failed to create temporary file: %v", err)
 	}
-	// Ensure the temporary file is removed after the test
+	// make sure to remove the temporary file after the test
 	defer os.Remove(tempFile.Name())
 
-	// Initialize TaskManager with the temporary file path
+	// init TaskManager with the temporary file path
 	tm := NewTaskManager(tempFile.Name())
 	tm.Init()
 
 	for _, tc := range testCases {
 		tc := tc
-		t.Run(tc.desc, func(t *testing.T) {
+		t.Run(tc.testDesc, func(t *testing.T) {
 			tm.AddTask(tc.taskDesc)
 
 			task, exists := findTaskByID(&tm.tasks, tc.expectedID)
