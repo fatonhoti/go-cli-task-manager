@@ -5,15 +5,6 @@ import (
 	"testing"
 )
 
-func findTaskByID(tasks *map[int]Task, id int) (*Task, bool) {
-	for _, task := range *tasks {
-		if task.ID == id {
-			return &task, true
-		}
-	}
-	return nil, false
-}
-
 func TestAddTask(t *testing.T) {
 	type testCase struct {
 		testDesc    string // Description of the test case
@@ -55,7 +46,7 @@ func TestAddTask(t *testing.T) {
 		t.Run(tc.testDesc, func(t *testing.T) {
 			tm.AddTask(tc.taskDesc)
 
-			task, exists := findTaskByID(&tm.tasks, tc.expectedID)
+			task, exists := tm.tasks[tc.expectedID]
 
 			if exists != tc.expectExist {
 				t.Errorf("Task existence mismatch: expected %v, got %v", tc.expectExist, exists)
@@ -81,7 +72,7 @@ func TestAddTask(t *testing.T) {
 	}
 
 	for _, task := range tm.tasks {
-		loadedTask, exists := findTaskByID(&tm2.tasks, task.ID)
+		loadedTask, exists := tm2.tasks[task.ID]
 		if !exists {
 			t.Errorf("Task with ID %d not found in loaded tasks", task.ID)
 		} else {
