@@ -30,6 +30,9 @@ func (tm *TaskManager) Init() {
 }
 
 func (tm *TaskManager) AddTask(desc string) {
+	if len(desc) == 0 {
+		return
+	}
 	tm.tasks[tm.nextId] = Task{
 		ID:          tm.nextId,
 		Description: desc,
@@ -38,7 +41,7 @@ func (tm *TaskManager) AddTask(desc string) {
 		CompletedAt: time.Time{},
 	}
 	tm.nextId++
-	fmt.Printf("Task added successfully. ID=%d", tm.nextId-1)
+	fmt.Printf("Task added successfully. ID=%d\n", tm.nextId-1)
 	tm.SaveTasksToFile()
 }
 
