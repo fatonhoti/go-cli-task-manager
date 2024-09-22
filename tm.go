@@ -108,20 +108,22 @@ func (tm *TaskManager) ListTasks(viewCompact bool, filter string) {
 	ts := make(map[int]Task, 0)
 
 	if filter == "completed" {
-		for i := range tm.tasks {
-			if tm.tasks[i].Completed {
-				ts[tm.tasks[i].ID] = tm.tasks[i]
+		for id, task := range tm.tasks {
+			if task.Completed {
+				ts[id] = tm.tasks[id]
 			}
 		}
 	} else if filter == "pending" {
-		for i := range tm.tasks {
-			if !tm.tasks[i].Completed {
-				ts[tm.tasks[i].ID] = tm.tasks[i]
+		for id, task := range tm.tasks {
+			if !task.Completed {
+				ts[id] = tm.tasks[id]
 			}
 		}
-	} else {
+	} else /* all */ {
 		ts = tm.tasks
 	}
+
+	// TODO: Consider doing this to list tasks in order based on ID: https://stackoverflow.com/a/18342865/26041804
 
 	if viewCompact {
 		tm.ListTasksCompact(&ts)
@@ -133,41 +135,33 @@ func (tm *TaskManager) ListTasks(viewCompact bool, filter string) {
 func (tm *TaskManager) ListTasksCompact(tasks *map[int]Task) {
 	fmt.Printf("--------------------------------------------\n")
 	for id, task := range *tasks {
-		// Add checkbox style for completed status
 		status := "[ ]"
 		if task.Completed {
 			status = "[x]"
 		}
 
-		// Print out the task details
 		fmt.Printf("%s Task ID: %d\n", status, id)
 
-		// Print each line of the description
-		descriptionLines := strings.Split(task.Description, "\n")
 		fmt.Println("Description:")
-		for _, line := range descriptionLines {
-			fmt.Printf("%s\n", strings.Replace(line, `\n`, "\n", -1)) // Indent description lines
+		for _, line := range strings.Split(task.Description, "\n") {
+			fmt.Printf("%s\n", strings.Replace(line, `\n`, "\n", -1))
 		}
 
-		// Calculate days ago
-		days := int32(time.Since(task.CreatedAt).Hours() / 24)
+		days := int(time.Since(task.CreatedAt).Hours() / 24)
 		fmt.Printf("Created At: %s (%d days ago)\n", task.CreatedAt.Format("2006-01-02 15:04:05"), days)
 
 		if task.Completed {
 			fmt.Printf("Completed At: %s\n", task.CompletedAt.Format("2006-01-02 15:04:05"))
 		}
 
-		// Separator for each task
 		fmt.Printf("--------------------------------------------\n")
 	}
 }
 
 func (tm *TaskManager) ListTasksTable(tasks *map[int]Task) {
-	// Print table headers
 	fmt.Printf("%-5s %-10s %-20s %-20s %-10s\n", "ID", "Completed", "Created At", "Completed At", "Days Ago")
 	fmt.Println("-------------------------------------------------------------------")
 
-	// Print each task
 	for id, task := range *tasks {
 		completed := "No"
 		completedAt := "NOT_COMPLETED"
@@ -179,7 +173,6 @@ func (tm *TaskManager) ListTasksTable(tasks *map[int]Task) {
 		// Calculate how many days ago the task was created
 		daysAgo := int(time.Since(task.CreatedAt).Hours() / 24)
 
-		// Print task metadata first (ID, status, timestamps)
 		fmt.Printf("%-5d %-10s %-20s %-20s %-10d\n",
 			id,
 			completed,
@@ -188,9 +181,8 @@ func (tm *TaskManager) ListTasksTable(tasks *map[int]Task) {
 			daysAgo)
 
 		// Print each line of the description
-		descriptionLines := strings.Split(task.Description, "\n")
-		for _, line := range descriptionLines {
-			fmt.Printf("%-s\n", strings.Replace(line, `\n`, "\n", -1)) // Indent the description lines to align them
+		for _, line := range strings.Split(task.Description, "\n") {
+			fmt.Printf("%-s\n", strings.Replace(line, `\n`, "\n", -1))
 		}
 
 		fmt.Println("-------------------------------------------------------------------")
@@ -198,15 +190,19 @@ func (tm *TaskManager) ListTasksTable(tasks *map[int]Task) {
 }
 
 func (tm *TaskManager) SaveTasksToFile() {
-	jsonData, err := json.MarshalIndent(tm.tasks, "", " ")
-	if err != nil {
-		fmt.Println("error. Could not serailize tasks.")
-		panic(err)
-	}
+
+	// TODO: Consider adding recovery functionality in case below operations go wrong.
 
 	f, err := os.OpenFile(tm.path, os.O_TRUNC|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Printf("error. Could not open file %s\n", tm.path)
+		panic(err)
+	}
+	defer f.Close()
+
+	jsonData, err := json.MarshalIndent(tm.tasks, "", " ")
+	if err != nil {
+		fmt.Println("error. Could not serailize tasks.")
 		panic(err)
 	}
 
@@ -241,7 +237,6 @@ func (tm *TaskManager) LoadTasksFromFile() {
 	var buffer = make([]byte, fi.Size())
 	f.Read(buffer)
 
-	//var taskSlice []Task
 	err = json.Unmarshal(buffer, &tm.tasks)
 	if err != nil {
 		fmt.Println("error. Failed to unmarshal JSON.")
@@ -260,9 +255,6 @@ func NewTaskManager(path string) *TaskManager {
 
 func main() {
 
-	taskManager := NewTaskManager("./tasks.json")
-	taskManager.Init()
-
 	// list command
 	listCmd := flag.NewFlagSet("list", flag.ExitOnError)
 	listCompact := listCmd.Bool("compact", false, "Display tasks in a compact format.")
@@ -270,16 +262,14 @@ func main() {
 
 	// add command
 	addCmd := flag.NewFlagSet("add", flag.ExitOnError)
-	//_ = addCmd.String("", "", "'tm add description1 description2 ...' creates a task per description.")
 
 	// delete command
 	deleteCmd := flag.NewFlagSet("delete", flag.ExitOnError)
-	//deleteId := deleteCmd.Int("id", -1, "ID of task. Must be greater than zero.")
 
 	// complete command
 	completeCmd := flag.NewFlagSet("complete", flag.ExitOnError)
-	//completeId := completeCmd.Int("id", -1, "ID of task. Must be greater than zero.")
 
+	// uncheck (mark as uncompleted) command
 	uncheckCmd := flag.NewFlagSet("uncheck", flag.ExitOnError)
 
 	// clear command
@@ -290,6 +280,10 @@ func main() {
 		fmt.Println("error. Expected a subcommand. Use 'help' to see usage instructions.")
 		os.Exit(1)
 	}
+
+	// TODO: Consider allowing user to specify some other file via a CLI arg.
+	taskManager := NewTaskManager("./tasks.json")
+	taskManager.Init()
 
 	switch os.Args[1] {
 	case "list":
