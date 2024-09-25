@@ -5,13 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
 
 type Task struct {
-	ID          int       `json:"id"`
 	Description string    `json:"description"`
 	Completed   bool      `json:"completed"`
 	CreatedAt   time.Time `json:"createdAt"`
@@ -26,23 +26,28 @@ type TaskManager struct {
 
 func (tm *TaskManager) Init() {
 	tm.LoadTasksFromFile()
-	tm.nextId = len(tm.tasks) + 1
+	tm.nextId = 0
+	for id := range tm.tasks {
+		tm.nextId = max(tm.nextId, id)
+	}
+	tm.nextId++
 }
 
 func (tm *TaskManager) AddTask(desc string) {
 	if len(desc) == 0 {
 		return
 	}
+
 	tm.tasks[tm.nextId] = Task{
-		ID:          tm.nextId,
 		Description: desc,
 		Completed:   false,
 		CreatedAt:   time.Now(),
 		CompletedAt: time.Time{},
 	}
+
 	tm.nextId++
-	fmt.Printf("Task added successfully. ID=%d\n", tm.nextId-1)
 	tm.SaveTasksToFile()
+	fmt.Printf("Task added successfully. ID=%d\n", tm.nextId-1)
 }
 
 func (tm *TaskManager) DeleteTask(id int) {
@@ -85,22 +90,21 @@ func (tm *TaskManager) ClearTasks(filter string) {
 	if filter == "completed" {
 		for i := range tm.tasks {
 			if !tm.tasks[i].Completed {
-				ts[tm.tasks[i].ID] = tm.tasks[i]
+				ts[i] = tm.tasks[i]
 			}
 		}
-		fmt.Println("Completed tasks cleared.")
 	} else if filter == "pending" {
 		for i := range tm.tasks {
 			if tm.tasks[i].Completed {
-				ts[tm.tasks[i].ID] = tm.tasks[i]
+				ts[i] = tm.tasks[i]
 			}
 		}
-		fmt.Println("Pending tasks cleared.")
 	}
 	// if no filter is given => clear all tasks.
 
 	tm.tasks = ts
 	tm.SaveTasksToFile()
+	fmt.Println("Cleared tasks.")
 }
 
 func (tm *TaskManager) ListTasks(viewCompact bool, filter string) {
@@ -108,6 +112,7 @@ func (tm *TaskManager) ListTasks(viewCompact bool, filter string) {
 		fmt.Println("No tasks to show.")
 		return
 	}
+
 	ts := make(map[int]Task, 0)
 
 	if filter == "completed" {
@@ -126,18 +131,25 @@ func (tm *TaskManager) ListTasks(viewCompact bool, filter string) {
 		ts = tm.tasks
 	}
 
-	// TODO: Consider doing this to list tasks in order based on ID: https://stackoverflow.com/a/18342865/26041804
+	taskIds := make([]int, 0, len(ts))
+	i := 0
+	for k := range ts {
+		taskIds = append(taskIds, k)
+		i++
+	}
+	sort.Ints(taskIds)
 
 	if viewCompact {
-		tm.ListTasksCompact(&ts)
+		tm.ListTasksCompact(&taskIds)
 	} else {
-		tm.ListTasksTable(&ts)
+		tm.ListTasksTable(&taskIds)
 	}
 }
 
-func (tm *TaskManager) ListTasksCompact(tasks *map[int]Task) {
+func (tm *TaskManager) ListTasksCompact(taskIds *[]int) {
 	fmt.Printf("--------------------------------------------\n")
-	for id, task := range *tasks {
+	for id := range *taskIds {
+		task := tm.tasks[id]
 		status := "[ ]"
 		if task.Completed {
 			status = "[x]"
@@ -161,11 +173,12 @@ func (tm *TaskManager) ListTasksCompact(tasks *map[int]Task) {
 	}
 }
 
-func (tm *TaskManager) ListTasksTable(tasks *map[int]Task) {
+func (tm *TaskManager) ListTasksTable(taskIds *[]int) {
 	fmt.Printf("%-5s %-10s %-20s %-20s %-10s\n", "ID", "Completed", "Created At", "Completed At", "Days Ago")
 	fmt.Println("-------------------------------------------------------------------")
 
-	for id, task := range *tasks {
+	for _, id := range *taskIds {
+		task := tm.tasks[id]
 		completed := "No"
 		completedAt := "NOT_COMPLETED"
 		if task.Completed {
@@ -277,10 +290,10 @@ func main() {
 
 	// clear command
 	clearCmd := flag.NewFlagSet("clear", flag.ExitOnError)
-	clearFilter := clearCmd.String("filter", "all", "Clear tasks. Possible to filter, options are 'all', 'completed', or 'pending'.")
+	clearFilter := clearCmd.String("filter", "", "Clear tasks. Possible to filter, options are 'all', 'completed', or 'pending'.")
 
 	if len(os.Args) < 2 {
-		fmt.Println("error. Expected a subcommand. Use 'help' to see usage instructions.")
+		fmt.Println("error. Expected a command. Use 'help' to see usage instructions.")
 		os.Exit(1)
 	}
 

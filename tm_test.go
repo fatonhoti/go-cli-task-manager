@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"reflect"
 	"testing"
 )
 
@@ -46,19 +47,10 @@ func TestAddTask(t *testing.T) {
 		t.Run(tc.testDesc, func(t *testing.T) {
 			tm.AddTask(tc.taskDesc)
 
-			task, exists := tm.tasks[tc.expectedID]
+			_, exists := tm.tasks[tc.expectedID]
 
 			if exists != tc.expectExist {
 				t.Errorf("Task existence mismatch: expected %v, got %v", tc.expectExist, exists)
-			}
-
-			if exists {
-				if task.ID != tc.expectedID {
-					t.Errorf("Task ID mismatch: expected %d, got %d", tc.expectedID, task.ID)
-				}
-				if task.Description != tc.taskDesc {
-					t.Errorf("Task Description mismatch: expected '%s', got '%s'", tc.taskDesc, task.Description)
-				}
 			}
 		})
 	}
@@ -71,17 +63,8 @@ func TestAddTask(t *testing.T) {
 		t.Errorf("Loaded tasks count mismatch: expected %d, got %d", len(tm.tasks), len(tm2.tasks))
 	}
 
-	for _, task := range tm.tasks {
-		loadedTask, exists := tm2.tasks[task.ID]
-		if !exists {
-			t.Errorf("Task with ID %d not found in loaded tasks", task.ID)
-		} else {
-			if loadedTask.Description != task.Description {
-				t.Errorf("Loaded Task Description mismatch for ID %d: expected '%s', got '%s'", task.ID, task.Description, loadedTask.Description)
-			}
-			if loadedTask.Completed != task.Completed {
-				t.Errorf("Loaded Task Completed status mismatch for ID %d: expected %v, got %v", task.ID, task.Completed, loadedTask.Completed)
-			}
-		}
+	if eq := reflect.DeepEqual(tm, tm2); !eq {
+		t.Errorf("Loaded tasks differ from what was expected.")
 	}
+
 }
