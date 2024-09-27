@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 	"time"
+
+	"github.com/olekukonko/tablewriter"
 )
 
 type Task struct {
@@ -111,8 +112,7 @@ func (tm *TaskManager) ListTasks(filter string) {
 		return
 	}
 
-	ts := make(map[int]Task, 0)
-
+	ts := make(map[int]Task)
 	for id, task := range tm.tasks {
 		if (filter == "c" && task.Completed) || (filter == "nc" && !task.Completed) {
 			ts[id] = task
@@ -120,23 +120,22 @@ func (tm *TaskManager) ListTasks(filter string) {
 	}
 
 	if filter != "c" && filter != "nc" {
-		ts = tm.tasks
+		ts = tm.tasks // all tasks.
 	}
 
-	// maps are not sorted by default in Go
+	// sort by task ID because Go maps are not sorted by default
 	taskIds := make([]int, 0, len(ts))
-	i := 0
-	for k := range ts {
-		taskIds = append(taskIds, k)
-		i++
+	for id := range ts {
+		taskIds = append(taskIds, id)
 	}
 	sort.Ints(taskIds)
 
-	fmt.Printf("%-5s %-10s %-20s %-20s %-10s\n", "ID", "Completed", "Created At", "Completed At", "Days Ago")
-	fmt.Println("-------------------------------------------------------------------")
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"ID", "Completed", "Created At", "Completed At", "Days Ago", "Description"})
 
 	for _, id := range taskIds {
-		task := tm.tasks[id]
+		task := ts[id]
+
 		completed := "No"
 		completedAt := "NOT_COMPLETED"
 		if task.Completed {
@@ -144,23 +143,19 @@ func (tm *TaskManager) ListTasks(filter string) {
 			completedAt = task.CompletedAt.Format("2006-01-02 15:04:05")
 		}
 
-		// Calculate how many days ago the task was created
 		daysAgo := int(time.Since(task.CreatedAt).Hours() / 24)
 
-		fmt.Printf("%-5d %-10s %-20s %-20s %-10d\n",
-			id,
+		table.Append([]string{
+			fmt.Sprintf("%d", id),
 			completed,
 			task.CreatedAt.Format("2006-01-02 15:04:05"),
 			completedAt,
-			daysAgo)
-
-		// Print each line of the description
-		for _, line := range strings.Split(task.Description, "\n") {
-			fmt.Printf("%-s\n", strings.Replace(line, `\n`, "\n", -1))
-		}
-
-		fmt.Println("-------------------------------------------------------------------")
+			fmt.Sprintf("%d", daysAgo),
+			task.Description,
+		})
 	}
+
+	table.Render()
 }
 
 func (tm *TaskManager) SaveTasksToFile() {
