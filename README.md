@@ -17,7 +17,7 @@ This is a simple task management CLI application built with Go, utilizing the [C
 
 ### Building from Source
 ```bash
-git clone https://github.com/yourusername/task-manager-cli.git
+git clone https://github.com/fatonhoti/go-cli-task-manager.git
 cd task-manager-cli
 go build -o tm
 ```
