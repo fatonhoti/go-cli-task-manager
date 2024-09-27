@@ -11,7 +11,7 @@ import (
 func main() {
 
 	taskManager := NewTaskManager("./tasks.json")
-	taskManager.Init()
+	taskManager.Initialize()
 
 	// list command
 	var cmdList = &cobra.Command{

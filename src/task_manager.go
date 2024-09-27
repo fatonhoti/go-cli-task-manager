@@ -10,6 +10,13 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
+const (
+	TimeFormat         = "2006-01-02 15:04:05"
+	FilterCompleted    = "c"
+	FilterNotCompleted = "nc"
+	FilterAll          = "a"
+)
+
 type Task struct {
 	Description string    `json:"description"`
 	Completed   bool      `json:"completed"`
@@ -23,7 +30,7 @@ type TaskManager struct {
 	path   string
 }
 
-func (tm *TaskManager) Init() {
+func (tm *TaskManager) Initialize() {
 	tm.LoadTasksFromFile()
 	tm.nextId = 0
 	for id := range tm.tasks {
@@ -88,21 +95,12 @@ func (tm *TaskManager) ToggleTask(id int) {
 }
 
 func (tm *TaskManager) ClearTasks(filter string) {
-	ts := make(map[int]Task, 0)
-
 	for id, task := range tm.tasks {
-		if (filter == "c" && !task.Completed) || (filter == "nc" && task.Completed) {
-			ts[id] = task
+		if (filter == FilterCompleted && task.Completed) || (filter == FilterNotCompleted && !task.Completed) || (filter == FilterAll) {
+			delete(tm.tasks, id)
 		}
 	}
-
-	if filter != "c" && filter != "nc" {
-		ts = make(map[int]Task) // clear all
-	}
-
-	tm.tasks = ts
 	tm.SaveTasksToFile()
-
 	fmt.Println("Cleared tasks.")
 }
 
@@ -112,15 +110,23 @@ func (tm *TaskManager) ListTasks(filter string) {
 		return
 	}
 
-	ts := make(map[int]Task)
+	ts := make(map[int]Task, len(tm.tasks))
 	for id, task := range tm.tasks {
-		if (filter == "c" && task.Completed) || (filter == "nc" && !task.Completed) {
+		switch filter {
+		case FilterCompleted:
+			if task.Completed {
+				ts[id] = task
+			}
+		case FilterNotCompleted:
+			if !task.Completed {
+				ts[id] = task
+			}
+		case FilterAll:
 			ts[id] = task
+		default:
+			fmt.Printf("Error: invalid filter: %s", filter)
+			return
 		}
-	}
-
-	if filter != "c" && filter != "nc" {
-		ts = tm.tasks // all tasks.
 	}
 
 	// sort by task ID because Go maps are not sorted by default
@@ -140,7 +146,7 @@ func (tm *TaskManager) ListTasks(filter string) {
 		completedAt := "NOT_COMPLETED"
 		if task.Completed {
 			completed = "Yes"
-			completedAt = task.CompletedAt.Format("2006-01-02 15:04:05")
+			completedAt = task.CompletedAt.Format(TimeFormat)
 		}
 
 		daysAgo := int(time.Since(task.CreatedAt).Hours() / 24)
@@ -148,7 +154,7 @@ func (tm *TaskManager) ListTasks(filter string) {
 		table.Append([]string{
 			fmt.Sprintf("%d", id),
 			completed,
-			task.CreatedAt.Format("2006-01-02 15:04:05"),
+			task.CreatedAt.Format(TimeFormat),
 			completedAt,
 			fmt.Sprintf("%d", daysAgo),
 			task.Description,
@@ -163,31 +169,31 @@ func (tm *TaskManager) SaveTasksToFile() {
 	tmpFilePath := tm.path + ".tmp"
 	f, err := os.OpenFile(tmpFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
-		fmt.Printf("error. Could not open temporary file %s\n", tmpFilePath)
+		fmt.Printf("Error: could not open temporary file %s\n", tmpFilePath)
 		panic(err)
 	}
 	defer f.Close()
 
 	jsonData, err := json.MarshalIndent(tm.tasks, "", " ")
 	if err != nil {
-		fmt.Println("error. Could not serialize tasks.")
+		fmt.Println("Error: could not serialize tasks.")
 		panic(err)
 	}
 
 	_, err = f.Write(jsonData)
 	if err != nil {
-		fmt.Println("error. Could not write to temporary file.")
+		fmt.Println("Error: could not write to temporary file.")
 		panic(err)
 	}
 
 	if err := f.Close(); err != nil {
-		fmt.Println("error. Could not close temporary file.")
+		fmt.Println("Error: could not close temporary file.")
 		panic(err)
 	}
 
 	err = os.Rename(tmpFilePath, tm.path)
 	if err != nil {
-		fmt.Println("error. Could not replace the original file with the temporary file.")
+		fmt.Println("Error: could not replace the original file with the temporary file.")
 		panic(err)
 	}
 
@@ -197,14 +203,14 @@ func (tm *TaskManager) LoadTasksFromFile() {
 
 	f, err := os.OpenFile(tm.path, os.O_CREATE|os.O_RDONLY, 0644)
 	if err != nil {
-		fmt.Printf("Failed. Could not open file %s\n", tm.path)
+		fmt.Printf("Error: could not open file %s\n", tm.path)
 		panic(err)
 	}
 	defer f.Close()
 
 	fi, err := f.Stat()
 	if err != nil {
-		fmt.Printf("error. Stat() on %s failed.\n", tm.path)
+		fmt.Printf("Error: Stat() on %s failed.\n", tm.path)
 		panic(err)
 	}
 
@@ -219,7 +225,7 @@ func (tm *TaskManager) LoadTasksFromFile() {
 
 	err = json.Unmarshal(buffer, &tm.tasks)
 	if err != nil {
-		fmt.Println("error. Failed to unmarshal JSON.")
+		fmt.Println("Error: failed to unmarshal JSON.")
 		panic(err)
 	}
 
