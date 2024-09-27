@@ -50,7 +50,7 @@ func (tm *TaskManager) AddTask(desc string) {
 }
 
 func (tm *TaskManager) DeleteTask(id int) {
-	if _, ok := tm.tasks[id]; ok {
+	if _, ok := tm.tasks[id]; !ok {
 		fmt.Printf("Task %d not found.\n", id)
 		return
 	}
