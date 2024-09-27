@@ -2,13 +2,14 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
 type Task struct {
@@ -57,45 +58,42 @@ func (tm *TaskManager) DeleteTask(id int) {
 		fmt.Printf("Task %d has been deleted.\n", id)
 		return
 	}
-	fmt.Printf("error. No task with given ID=%d\n", id)
 }
 
-func (tm *TaskManager) CompleteTask(id int) {
+func (tm *TaskManager) ToggleTask(id int) {
 	if task, ok := tm.tasks[id]; ok {
-		task.Completed = true
-		task.CompletedAt = time.Now()
+		if task.Completed {
+			task.Completed = false
+			task.CompletedAt = time.Time{}
+		} else {
+			task.Completed = true
+			task.CompletedAt = time.Now()
+		}
 		tm.tasks[id] = task
 		tm.SaveTasksToFile()
-		fmt.Printf("Task %d has been marked as completed.\n", id)
-		return
-	}
-	fmt.Printf("error. No task with given ID=%d\n", id)
-}
 
-func (tm *TaskManager) UncheckTask(id int) {
-	if task, ok := tm.tasks[id]; ok {
-		task.Completed = false
-		task.CompletedAt = time.Time{}
-		tm.tasks[id] = task
-		tm.SaveTasksToFile()
-		fmt.Printf("Task %d has been marked as uncompleted.\n", id)
+		marked := "completed"
+		if !task.Completed {
+			marked = "pending"
+		}
+		fmt.Printf("Task %d has been marked %s.\n", id, marked)
+
 		return
 	}
-	fmt.Printf("error. No task with given ID=%d\n", id)
 }
 
 func (tm *TaskManager) ClearTasks(filter string) {
 	ts := make(map[int]Task, 0)
 
-	if filter == "completed" {
+	if filter == "c" {
 		for i := range tm.tasks {
-			if !tm.tasks[i].Completed {
+			if tm.tasks[i].Completed {
 				ts[i] = tm.tasks[i]
 			}
 		}
-	} else if filter == "pending" {
+	} else if filter == "nc" {
 		for i := range tm.tasks {
-			if tm.tasks[i].Completed {
+			if !tm.tasks[i].Completed {
 				ts[i] = tm.tasks[i]
 			}
 		}
@@ -107,7 +105,7 @@ func (tm *TaskManager) ClearTasks(filter string) {
 	fmt.Println("Cleared tasks.")
 }
 
-func (tm *TaskManager) ListTasks(viewCompact bool, filter string) {
+func (tm *TaskManager) ListTasks(filter string) {
 	if len(tm.tasks) == 0 {
 		fmt.Println("No tasks to show.")
 		return
@@ -115,13 +113,13 @@ func (tm *TaskManager) ListTasks(viewCompact bool, filter string) {
 
 	ts := make(map[int]Task, 0)
 
-	if filter == "completed" {
+	if filter == "c" {
 		for id, task := range tm.tasks {
 			if task.Completed {
 				ts[id] = tm.tasks[id]
 			}
 		}
-	} else if filter == "pending" {
+	} else if filter == "nc" {
 		for id, task := range tm.tasks {
 			if !task.Completed {
 				ts[id] = tm.tasks[id]
@@ -139,45 +137,10 @@ func (tm *TaskManager) ListTasks(viewCompact bool, filter string) {
 	}
 	sort.Ints(taskIds)
 
-	if viewCompact {
-		tm.ListTasksCompact(&taskIds)
-	} else {
-		tm.ListTasksTable(&taskIds)
-	}
-}
-
-func (tm *TaskManager) ListTasksCompact(taskIds *[]int) {
-	fmt.Printf("--------------------------------------------\n")
-	for id := range *taskIds {
-		task := tm.tasks[id]
-		status := "[ ]"
-		if task.Completed {
-			status = "[x]"
-		}
-
-		fmt.Printf("%s Task ID: %d\n", status, id)
-
-		fmt.Println("Description:")
-		for _, line := range strings.Split(task.Description, "\n") {
-			fmt.Printf("%s\n", strings.Replace(line, `\n`, "\n", -1))
-		}
-
-		days := int(time.Since(task.CreatedAt).Hours() / 24)
-		fmt.Printf("Created At: %s (%d days ago)\n", task.CreatedAt.Format("2006-01-02 15:04:05"), days)
-
-		if task.Completed {
-			fmt.Printf("Completed At: %s\n", task.CompletedAt.Format("2006-01-02 15:04:05"))
-		}
-
-		fmt.Printf("--------------------------------------------\n")
-	}
-}
-
-func (tm *TaskManager) ListTasksTable(taskIds *[]int) {
 	fmt.Printf("%-5s %-10s %-20s %-20s %-10s\n", "ID", "Completed", "Created At", "Completed At", "Days Ago")
 	fmt.Println("-------------------------------------------------------------------")
 
-	for _, id := range *taskIds {
+	for _, id := range taskIds {
 		task := tm.tasks[id]
 		completed := "No"
 		completedAt := "NOT_COMPLETED"
@@ -271,119 +234,99 @@ func NewTaskManager(path string) *TaskManager {
 
 func main() {
 
-	// list command
-	listCmd := flag.NewFlagSet("list", flag.ExitOnError)
-	listCompact := listCmd.Bool("compact", false, "Display tasks in a compact format.")
-	listFilter := listCmd.String("filter", "all", "List filtered tasks. Options are 'all', 'completed', or 'pending'.")
-
-	// add command
-	addCmd := flag.NewFlagSet("add", flag.ExitOnError)
-
-	// delete command
-	deleteCmd := flag.NewFlagSet("delete", flag.ExitOnError)
-
-	// complete command
-	completeCmd := flag.NewFlagSet("complete", flag.ExitOnError)
-
-	// uncheck (mark as uncompleted) command
-	uncheckCmd := flag.NewFlagSet("uncheck", flag.ExitOnError)
-
-	// clear command
-	clearCmd := flag.NewFlagSet("clear", flag.ExitOnError)
-	clearFilter := clearCmd.String("filter", "", "Clear tasks. Possible to filter, options are 'all', 'completed', or 'pending'.")
-
-	if len(os.Args) < 2 {
-		fmt.Println("error. Expected a command. Use 'help' to see usage instructions.")
-		os.Exit(1)
-	}
-
-	// TODO: Consider allowing user to specify some other file via a CLI arg.
 	taskManager := NewTaskManager("./tasks.json")
 	taskManager.Init()
 
-	switch os.Args[1] {
-	case "list":
-		listCmd.Parse(os.Args[2:])
-		if *listFilter != "all" && *listFilter != "completed" && *listFilter != "pending" {
-			fmt.Println("error. Invalid filter value.")
-			listCmd.Usage()
-			os.Exit(1)
-		}
-		taskManager.ListTasks(*listCompact, *listFilter)
-	case "add":
-		addCmd.Parse(os.Args[2:])
-		args := addCmd.Args()
-		if len(args) == 0 {
-			fmt.Println("error. Must give at least one description corresponding to one task.")
-			os.Exit(1)
-		}
-		for i := range args {
-			taskManager.AddTask(args[i])
-		}
-	case "delete":
-		deleteCmd.Parse(os.Args[2:])
-		args := deleteCmd.Args()
-		if len(args) == 0 {
-			fmt.Println("error. Must give at least one ID corresponding to one task.")
-			os.Exit(1)
-		}
-		for i := range args {
-			if id, err := strconv.Atoi(args[i]); err == nil {
-				taskManager.DeleteTask(id)
-			} else {
-				fmt.Printf("error. Found non-integer argument ID=%s, skipping.", args[i])
+	minId := 1
+	maxId := 1
+	for id := range taskManager.tasks {
+		minId = min(minId, id)
+		maxId = max(maxId, id)
+	}
+
+	// list command
+	var cmdList = &cobra.Command{
+		Use:   "list [a|c|nc]",
+		Short: "List a set of tasks",
+		Long:  "List a set of tasks. Use filter argument to filter for 'all', 'completed', or 'non-completed' tasks.",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if args[0] != "a" && args[0] != "c" && args[0] != "nc" {
+				fmt.Println("Error. Invalid filter.")
+				return
 			}
-		}
-	case "complete":
-		completeCmd.Parse(os.Args[2:])
-		args := completeCmd.Args()
-		if len(args) == 0 {
-			fmt.Println("error. Must give at least one ID corresponding to one task.")
-			os.Exit(1)
-		}
-		for i := range args {
-			if id, err := strconv.Atoi(args[i]); err == nil {
-				taskManager.CompleteTask(id)
-			} else {
-				fmt.Printf("error. Found non-integer argument ID=%s, skipping.", args[i])
+			taskManager.ListTasks(args[0])
+		},
+	}
+
+	// add command
+	var cmdAdd = &cobra.Command{
+		Use:   "add [task descriptions...]",
+		Short: "Add new tasks",
+		Long:  "Add one or more new tasks with the specified descriptions to the task manager.",
+		Args:  cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			for _, description := range args {
+				taskManager.AddTask(description)
 			}
-		}
-	case "uncheck":
-		uncheckCmd.Parse((os.Args[2:]))
-		args := uncheckCmd.Args()
-		if len(args) == 0 {
-			fmt.Println("error. Must give at least one ID corresponding to one task.")
-			os.Exit(1)
-		}
-		for i := range args {
-			if id, err := strconv.Atoi(args[i]); err == nil {
-				taskManager.UncheckTask(id)
-			} else {
-				fmt.Printf("error. Found non-integer argument ID=%s, skipping.", args[i])
+		},
+	}
+
+	// delete command
+	var cmdDelete = &cobra.Command{
+		Use:   "delete [task ids...]",
+		Short: "Delete tasks by ID",
+		Long:  "Delete one or more tasks by providing their respective task IDs. Only valid task IDs within the range are accepted.",
+		Args:  cobra.RangeArgs(minId, maxId),
+		Run: func(cmd *cobra.Command, args []string) {
+			for _, id := range args {
+				if n, err := strconv.Atoi(id); err == nil {
+					taskManager.DeleteTask(n)
+				}
 			}
-		}
-	case "clear":
-		clearCmd.Parse(os.Args[2:])
-		if *clearFilter != "all" && *clearFilter != "completed" && *clearFilter != "pending" {
-			fmt.Println("error. Invalid filter value.")
-			clearCmd.Usage()
-			os.Exit(1)
-		}
-		taskManager.ClearTasks(*clearFilter)
-	case "help":
-		listCmd.Usage()
-		fmt.Println("Usage of add:")
-		fmt.Println("\t'tm add description1 description2 ...' creates a task per description.")
-		fmt.Println("Usage of delete:")
-		fmt.Println("\t'tm delete id1 id2 ...' deletes tasks with given IDs.")
-		fmt.Println("Usage of complete:")
-		fmt.Println("\t'tm complete id1 id2 ...' marks tasks with given IDs as completed.")
-		fmt.Println("Usage of uncheck:")
-		fmt.Println("\t'tm uncheck id1 id2 ...' marks tasks with given IDs as uncompleted.")
-		clearCmd.Usage()
-	default:
-		fmt.Println("error. No subcommand found. Use 'help' to see usage instructions.")
-		os.Exit(1)
+		},
+	}
+
+	// toggle command
+	var cmdToggle = &cobra.Command{
+		Use:   "toggle [task ids...]",
+		Short: "Toggle the completion status of tasks",
+		Long:  "Toggle the completion status of one or more tasks by their task IDs. This changes completed tasks to non-completed and vice versa.",
+		Args:  cobra.RangeArgs(minId, maxId),
+		Run: func(cmd *cobra.Command, args []string) {
+			for _, id := range args {
+				if n, err := strconv.Atoi(id); err == nil {
+					taskManager.ToggleTask(n)
+				}
+			}
+		},
+	}
+
+	// clear command
+	var cmdClear = &cobra.Command{
+		Use:   "clear [a|c|nc]",
+		Short: "Clear tasks based on completion status",
+		Long:  "Clear tasks by providing a filter: 'a' for all tasks, 'c' for completed tasks, or 'nc' for non-completed tasks.",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if args[0] != "a" && args[0] != "c" && args[0] != "nc" {
+				fmt.Println("Error. Invalid filter.")
+				return
+			}
+			taskManager.ClearTasks(args[0])
+		},
+	}
+
+	var rootCmd = &cobra.Command{Use: "tm"}
+
+	rootCmd.AddCommand(cmdList)
+	rootCmd.AddCommand(cmdAdd)
+	rootCmd.AddCommand(cmdDelete)
+	rootCmd.AddCommand(cmdToggle)
+	rootCmd.AddCommand(cmdClear)
+
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
 	}
 
 	os.Exit(0)
