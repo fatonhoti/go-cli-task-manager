@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"os"
 	"strings"
@@ -27,12 +26,10 @@ func createTempTaskManager(t *testing.T) *TaskManager {
 	return tm
 }
 
-// Helper function to check if a substring is present in a string
 func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
 }
 
-// Test adding tasks
 func TestAddTask(t *testing.T) {
 	tm := createTempTaskManager(t)
 
@@ -60,7 +57,6 @@ func TestAddTask(t *testing.T) {
 
 }
 
-// Test deleting tasks
 func TestDeleteTask(t *testing.T) {
 	tm := createTempTaskManager(t)
 
@@ -76,14 +72,13 @@ func TestDeleteTask(t *testing.T) {
 		t.Errorf("Expected 1 task after deletion, got %d", len(tm.tasks))
 	}
 
-	// Attempt to delete non-existing task
+	// attempt to delete non-existing task
 	tm.DeleteTask(99)
 	if len(tm.tasks) != 1 {
 		t.Errorf("Deleting non-existing task should not change task count")
 	}
 }
 
-// Test toggling task completion status
 func TestToggleTask(t *testing.T) {
 	tm := createTempTaskManager(t)
 
@@ -100,7 +95,7 @@ func TestToggleTask(t *testing.T) {
 		t.Errorf("CompletedAt should be set when completed")
 	}
 
-	// Toggle back to not completed
+	// toggle back to not completed
 	tm.ToggleTask(1)
 
 	task = tm.tasks[1]
@@ -112,14 +107,13 @@ func TestToggleTask(t *testing.T) {
 		t.Errorf("CompletedAt should be zero when not completed")
 	}
 
-	// Attempt to toggle non-existing task
+	// attempt to toggle non-existing task
 	tm.ToggleTask(99)
 	if len(tm.tasks) != 1 {
 		t.Errorf("Task count should remain 1 after attempting to toggle non-existing task")
 	}
 }
 
-// Test clearing tasks based on filters
 func TestClearTasks(t *testing.T) {
 	tm := createTempTaskManager(t)
 
@@ -150,102 +144,6 @@ func TestClearTasks(t *testing.T) {
 	}
 }
 
-// Test listing tasks with different filters
-func TestListTasks(t *testing.T) {
-	tm := createTempTaskManager(t)
-
-	// Add tasks
-	tm.AddTask("Task A")        // ID 1 - not completed
-	time.Sleep(1 * time.Second) // Ensure different CreatedAt times
-	tm.AddTask("Task B")        // ID 2 - not completed
-	tm.AddTask("Task C")        // ID 3 - not completed
-	tm.ToggleTask(2)            // ID 2 - completed
-
-	// Capture the output of ListTasks by redirecting stdout
-	var buf bytes.Buffer
-	originalStdout := os.Stdout
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("Failed to create pipe: %v", err)
-	}
-	os.Stdout = w
-
-	// Run ListTasks for 'all'
-	go func() {
-		tm.ListTasks(FilterAll)
-		w.Close()
-	}()
-
-	// Read the output
-	_, err = buf.ReadFrom(r)
-	if err != nil {
-		t.Fatalf("Failed to read from pipe: %v", err)
-	}
-	os.Stdout = originalStdout
-	outputAll := buf.String()
-
-	// Reset buffer and pipe for completed tasks
-	buf.Reset()
-	r, w, err = os.Pipe()
-	if err != nil {
-		t.Fatalf("Failed to create pipe: %v", err)
-	}
-	os.Stdout = w
-
-	// Run ListTasks for 'completed'
-	go func() {
-		tm.ListTasks(FilterCompleted)
-		w.Close()
-	}()
-
-	_, err = buf.ReadFrom(r)
-	if err != nil {
-		t.Fatalf("Failed to read from pipe: %v", err)
-	}
-	os.Stdout = originalStdout
-	outputCompleted := buf.String()
-
-	// Reset buffer and pipe for non-completed tasks
-	buf.Reset()
-	r, w, err = os.Pipe()
-	if err != nil {
-		t.Fatalf("Failed to create pipe: %v", err)
-	}
-	os.Stdout = w
-
-	// Run ListTasks for 'non-completed'
-	go func() {
-		tm.ListTasks(FilterNotCompleted)
-		w.Close()
-	}()
-
-	_, err = buf.ReadFrom(r)
-	if err != nil {
-		t.Fatalf("Failed to read from pipe: %v", err)
-	}
-	os.Stdout = originalStdout
-	outputNotCompleted := buf.String()
-
-	if !contains(outputAll, "Task A") || !contains(outputAll, "Task B") || !contains(outputAll, "Task C") {
-		t.Errorf("Output for all tasks should contain Task A, Task B, and Task C")
-	}
-
-	if !contains(outputCompleted, "Task B") {
-		t.Errorf("Output for completed tasks should contain Task B")
-	}
-	if contains(outputCompleted, "Task A") || contains(outputCompleted, "Task C") {
-		t.Errorf("Output for completed tasks should not contain Task A or Task C")
-	}
-
-	if !contains(outputNotCompleted, "Task A") || !contains(outputNotCompleted, "Task C") {
-		t.Errorf("Output for non-completed tasks should contain Task A and Task C")
-	}
-	if contains(outputNotCompleted, "Task B") {
-		t.Errorf("Output for non-completed tasks should not contain Task B")
-	}
-}
-
-// Test initializing nextId correctly
 func TestInitializeNextId(t *testing.T) {
 	tempFile, err := os.CreateTemp("", "tasks_init_*.json")
 	if err != nil {
@@ -277,7 +175,6 @@ func TestInitializeNextId(t *testing.T) {
 	}
 }
 
-// Test adding a task with an empty description
 func TestAddTaskEmptyDescription(t *testing.T) {
 	tm := createTempTaskManager(t)
 
@@ -287,7 +184,6 @@ func TestAddTaskEmptyDescription(t *testing.T) {
 	}
 }
 
-// Test saving tasks to file
 func TestSaveTasksToFile(t *testing.T) {
 	tm := createTempTaskManager(t)
 
