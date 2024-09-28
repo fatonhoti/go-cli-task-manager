@@ -166,32 +166,33 @@ func (tm *TaskManager) ListTasks(filter string) {
 
 func (tm *TaskManager) SaveTasksToFile() {
 
-	tmpFilePath := tm.path + ".tmp"
-	f, err := os.OpenFile(tmpFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	tempFile, err := os.CreateTemp("", "tasks_*.json")
 	if err != nil {
-		fmt.Printf("Error: could not open temporary file %s\n", tmpFilePath)
-		panic(err)
+		fmt.Printf("Error: failed to create temporary file: %v", err)
 	}
-	defer f.Close()
 
 	jsonData, err := json.MarshalIndent(tm.tasks, "", " ")
 	if err != nil {
 		fmt.Println("Error: could not serialize tasks.")
+		tempFile.Close()
+		os.Remove(tempFile.Name())
 		panic(err)
 	}
 
-	_, err = f.Write(jsonData)
+	_, err = tempFile.Write(jsonData)
 	if err != nil {
 		fmt.Println("Error: could not write to temporary file.")
+		tempFile.Close()
+		os.Remove(tempFile.Name())
 		panic(err)
 	}
 
-	if err := f.Close(); err != nil {
+	if err := tempFile.Close(); err != nil {
 		fmt.Println("Error: could not close temporary file.")
 		panic(err)
 	}
 
-	err = os.Rename(tmpFilePath, tm.path)
+	err = os.Rename(tempFile.Name(), tm.path)
 	if err != nil {
 		fmt.Println("Error: could not replace the original file with the temporary file.")
 		panic(err)
