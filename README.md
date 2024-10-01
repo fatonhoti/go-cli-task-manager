@@ -12,9 +12,6 @@ This is a simple task management CLI application built with Go, utilizing the [C
 
 ## Installation
 
-### Prerequisites
-- [Go](https://go.dev/dl/) version 1.22.5 (likely works with many other versions too)
-
 ### Building from Source
 ```bash
 git clone git@github.com:fatonhoti/go-cli-task-manager.git
