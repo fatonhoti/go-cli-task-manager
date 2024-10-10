@@ -1,6 +1,6 @@
 # 📝 Task Manager CLI
 
-This is a simple task management CLI application built with Go, utilizing the [Cobra](https://github.com/spf13/cobra) package for command-line argument parsing and [tablewriter](https://github.com/olekukonko/tablewriter) for printing tables. The application allows users to **list**, **add**, **delete**, **toggle** (complete/pending), and **clear** tasks. The main goal of this project is to explore the basics of Go, with a secondary goal of developing a straightforward and easy to use task manager for personal use.
+This is a simple task management CLI application built with Go. The application allows users to **list**, **add**, **delete**, **toggle** (complete/pending), and **clear** tasks. The main goal of this project is to explore the basics of Go, with a secondary goal of developing a straightforward and easy to use task manager for personal use.
 
 ## Features
 
